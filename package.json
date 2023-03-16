@@ -1,0 +1,6 @@
+{
+  "main": "RssReader.js",
+  "dependencies": {
+    "rss-to-json": "^2.1.1"
+  }
+}

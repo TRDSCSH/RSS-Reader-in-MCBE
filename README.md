@@ -1,2 +1,2 @@
-# RSS-Viewer-in-MCBE
- RSS Viewer in Minecraft Bedrock Edition with LiteLoaderBDS
+# RSS-Reader-in-MCBE
+ RSS Feed Reader in Minecraft Bedrock Edition with LiteLoaderBDS
