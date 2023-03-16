@@ -28,20 +28,36 @@ function addSource(pl, text, prevFunc) {
 
     let form = mc.newCustomForm()
         .setTitle("添加RSS源")
-        .addInput("在下面文本中输入RSS地址")
+        .addInput("在下面文本中输入RSS地址") // id: 0
         .addLabel(text);
 
-    form.setHandler((pl, data) => {
-        pl.tell("正在访问网页");
-        // 获取到结果后重新显示表单
-        let result = "导入成功"; // 假设导入成功
-        form.getWidget(2).setText(`导入结果：${result}`);
+    pl.sendForm(form, (pl, data) => {
+        if (data != null) {
+            var rss;
+            getRssFeedFromURL(data[0], (rss) => {
+                addSource(pl, '成功' + greenFont + code);
+            });
+        } else {
+            // todo: 玩家关闭了表单, 返回上一级
+        }
     });
-
 }
 
 // 功能函数
-function timestampToLocalString(timestamp) { /* 时间戳转换为本地时间并格式化输出 */ 
+async function getRssFeedFromURL(pl, url, callback, prevFunc) { /* 从URL获取RSS Feed */
+    try {
+        rss = await parse(url);
+        callback(rss);
+    } catch (err) {
+        addSource(pl, '获取 Rss Feed 时发生错误: ' + redFont + code);
+    }
+}
+
+function replaceBetweenPercentSigns(str1, str2) { /* 替换字符串中所有百分号之间的内容 */
+    return str1.replace(/%.*?%/g, str2);
+}
+
+function timestampToLocalString(timestamp) { /* 时间戳转换为本地时间并格式化输出 */
     // 创建一个Date对象
     let date = new Date(timestamp);
     // 获取本地日期字符串
@@ -110,22 +126,4 @@ function printObjectKeyAndType(obj) { /* 打印对象的键和键对应的值的
         }
         console.log(key + ": " + type);
     }
-}
-
-function replaceBetweenPercentSigns(str1, str2) { /* 替换字符串中所有百分号之间的内容 */
-    return str1.replace(/%.*?%/g, str2);
-}
-
-async function getRssFeedFromURL(url, callback) { /* 从URL获取RSS Feed */
-    try {
-        rss = await parse(url);
-        callback(rss);
-    } catch (err) {
-        // console.log(err);
-        printError(err.code);
-    }
-}
-
-function printError(code) { /* 打印错误 */
-    console.log('获取 Rss Feed 时发生错误: ' + redFont + code);
 }
