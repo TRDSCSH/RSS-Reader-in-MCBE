@@ -1,5 +1,5 @@
 // 命令注册
-mc.regPlayerCmd("rss", "获取 RSS Feeds",);
+mc.regPlayerCmd("rss", "获取 RSS Feeds",addSource);
 
 // 常量
 const { parse } = require('rss-to-json');
