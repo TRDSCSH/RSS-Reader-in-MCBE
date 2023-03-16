@@ -1,5 +1,5 @@
 // 命令注册
-mc.regPlayerCmd("rss", "获取 RSS Feeds",addSource);
+mc.regPlayerCmd("rss", "获取 RSS Feeds", addSource);
 
 // 常量
 const { parse } = require('rss-to-json');
@@ -21,35 +21,54 @@ const labelFormat = "************%%************";
 const defaultIndent = 3;
 const redFont = "§c";
 const greenFont = "§a";
+const grayFont = "§7";
 
 // 界面函数
-function addSource(pl, text, prevFunc) {
-    if (text == null) text = "";
+function addSource(pl, label, inputedText, prevFunc) {
+    if (label == null || label == undefined || Array.isArray(label)) label = "";
 
     let form = mc.newCustomForm()
         .setTitle("添加RSS源")
-        .addInput("在下面文本中输入RSS地址") // id: 0
-        .addLabel(text);
+        .addInput("在下面文本框中输入RSS地址", "链接过长？输入§l0§r然后点击“提交”按钮来分段输入") // id: 0
+        .addLabel(label);
 
     pl.sendForm(form, (pl, data) => {
         if (data != null) {
-            var rss;
-            getRssFeedFromURL(data[0], (rss) => {
-                addSource(pl, '成功' + greenFont + code);
-            });
+            if (data[0] == "0") {
+
+            } else {
+                var rss;
+                getRssFeedFromURL(pl, data[0], (rss) => {
+                    addSource(pl, '成功添加: ' + rss.title);
+                    // TODO: 保存到文件
+                });
+            }
         } else {
             // todo: 玩家关闭了表单, 返回上一级
         }
     });
 }
 
+function selectInputCount(pl) {
+
+}
+
+function addMutiSource(pl, label, inputedText, inputCount, prevFunc) {
+    let form = mc.newCustomForm()
+        .setTitle("添加RSS源")
+        .addInput("在下面文本框中输入RSS地址", "链接过长？输入§l0§r然后点击“提交”按钮来分段输入") // id: 0
+        .addLabel(text);
+}
+
 // 功能函数
-async function getRssFeedFromURL(pl, url, callback, prevFunc) { /* 从URL获取RSS Feed */
+async function getRssFeedFromURL(pl, url, callback) { /* 从URL获取RSS Feed */
     try {
-        rss = await parse(url);
+        pl.sendToast("正在访问 URL", url); // todo: 后面改成subtitle加载形式
+        let rss = await parse(url);
         callback(rss);
     } catch (err) {
-        addSource(pl, '获取 Rss Feed 时发生错误: ' + redFont + code);
+        addSource(pl, '获取 Rss Feed 时发生错误: ' + redFont + err.code);
+        console.log(err);
     }
 }
 
