@@ -1,3 +1,11 @@
+/* 对 prevFuncData 参数的解释 */
+/* [函数名, [函数已接受的参数]] */
+
+/* 测试项目 */
+// 1. addSource, addMutiSource 函数中表单的功能
+// 2. getRssFeedFromURL 函数中的错误处理：能否跳转到正确的表单
+// 
+
 // 命令注册
 mc.regPlayerCmd("rss", "获取 RSS Feeds", addSource);
 
@@ -24,24 +32,28 @@ const greenFont = "§a";
 const grayFont = "§7";
 
 // 界面函数
-function addSource(pl, label, inputedText, prevFunc) {
-    if (label == null || label == undefined || Array.isArray(label)) label = "";
+function addSource(pl, label, inputedText, prevFuncData) {
+    // label: 提示信息 | inputedText: 输入框中的文本
+    let funcData = [Array.from(arguments), arguments.callee.name];
+
+    if (valueNotProvided(label)) label = "";
+    if (valueNotProvided(inputedText)) inputedText = "";
 
     let form = mc.newCustomForm()
-        .setTitle("添加RSS源")
-        .addInput("在下面文本框中输入RSS地址", "链接过长？输入§l0§r然后点击“提交”按钮来分段输入") // id: 0
+        .setTitle("添加RSS源")    // testURL: https://www.minebbs.com/forums/-/index.rss
+        .addInput("在下面文本框中输入RSS地址", "链接过长？输入§l0§r然后点击“提交”按钮来分段输入", inputedText) // id: 0
         .addLabel(label);
 
     pl.sendForm(form, (pl, data) => {
         if (data != null) {
             if (data[0] == "0") {
-
+                selectInputCount(pl, funcData);
             } else {
                 var rss;
                 getRssFeedFromURL(pl, data[0], (rss) => {
-                    addSource(pl, '成功添加: ' + rss.title);
+                    addSource(pl, '成功添加: ' + rss.title, funcData[0][2], funcData);
                     // TODO: 保存到文件
-                });
+                }, funcData);
             }
         } else {
             // todo: 玩家关闭了表单, 返回上一级
@@ -49,27 +61,82 @@ function addSource(pl, label, inputedText, prevFunc) {
     });
 }
 
-function selectInputCount(pl) {
+function selectInputCount(pl, prevFuncData) {
+    let form = mc.newCustomForm()
+        .setTitle("自定义输入框数量")
+        .addSlider("输入框数量", 2, 20, 1, 1); // id: 0
 
+    pl.sendForm(form, (pl, data) => {
+        if (data != null) {
+            addMutiSource(pl, "", data[0], "", prevFuncData);
+        } else {
+            // todo: 玩家关闭了表单, 返回上一级
+        }
+    });
 }
 
-function addMutiSource(pl, label, inputedText, inputCount, prevFunc) {
+function addMutiSource(pl, label, inputCount, inputedText, prevFuncData) {
+    // label: 提示信息 | inputCount: 文本框数量 | inputedText: [数组]输入框中的文本
+    let funcData = [Array.from(arguments), arguments.callee.name];
+
+    if (valueNotProvided(label)) label = "";
+    if (valueNotProvided(inputCount)) inputCount = 2;
+    if (inputedText.length == 0) { // TOTEST: 是否能够正确判断inputedText
+        inputedText = [];
+        for (let i = 0; i < inputCount; i++) {
+            inputedText[i] = "";
+        }
+    }
+
     let form = mc.newCustomForm()
-        .setTitle("添加RSS源")
-        .addInput("在下面文本框中输入RSS地址", "链接过长？输入§l0§r然后点击“提交”按钮来分段输入") // id: 0
-        .addLabel(text);
+        .setTitle("添加 RSS 源")
+        .addLabel("请在下面的输入框中输入RSS地址，每个输入框最多输入§l100§r个字符。"); // id: 0
+
+    for (let i = 0; i < inputCount; i++) {
+        form.addInput(`${grayFont}[${i}]`, `第 ${i} 段`, inputedText[i]); // id: 1 ~ inputCount
+    }
+
+    form.addLabel(label);
+
+    pl.sendForm(form, (pl, data) => {
+        if (data != null) {
+            let rss, url = "";
+            for (let i = 1; i <= inputCount; i++) {
+                url += data[i];
+            }
+            for (let i = 1; i <= inputCount; i++) {
+                inputedText[i - 1] = data[i];
+            }
+            getRssFeedFromURL(pl, url, (rss) => {
+                addMutiSource(pl, '成功添加: ' + rss.title, inputCount, inputedText, funcData);
+            }, funcData);
+        } else {
+            // TODO: 玩家关闭了表单, 调用上一级函数
+        }
+    });
 }
 
 // 功能函数
-async function getRssFeedFromURL(pl, url, callback) { /* 从URL获取RSS Feed */
+async function getRssFeedFromURL(pl, url, callback, prevFuncData) { /* 从URL获取RSS Feed */
     try {
-        pl.sendToast("正在访问 URL", url); // todo: 后面改成subtitle加载形式
+        pl.tell("正在访问 URL: " + url); // todo: 后面改成subtitle加载形式
         let rss = await parse(url);
         callback(rss);
     } catch (err) {
-        addSource(pl, '获取 Rss Feed 时发生错误: ' + redFont + err.code);
-        console.log(err);
+        // log(err);
+        log(prevFuncData);
+        if (prevFuncData[1] == "addSource") {
+            addSource(pl, '获取 Rss Feed 时发生错误: ' + redFont + err.code, prevFuncData[0][2], prevFuncData);
+        } else if (prevFuncData[1] == "addMutiSource") {
+            addMutiSource(pl, '获取 Rss Feed 时发生错误: ' + redFont + err.code, prevFuncData[0][2], prevFuncData[0][3], prevFuncData);
+        }
     }
+}
+
+function saveToFile(pl, rss) {
+    const playerData = new JsonConfigFile(playerDataPath);
+
+    // 如果key不存在则创建，否则获取并与现有的值比较，如果相同则不保存
 }
 
 function replaceBetweenPercentSigns(str1, str2) { /* 替换字符串中所有百分号之间的内容 */
@@ -146,3 +213,12 @@ function printObjectKeyAndType(obj) { /* 打印对象的键和键对应的值的
         console.log(key + ": " + type);
     }
 }
+
+function valueNotProvided(varible) { /* 判断值是否未提供 */
+    return varible == null || varible == undefined || Array.isArray(varible);
+}
+
+// 创建计时器
+
+
+// 销毁计时器
