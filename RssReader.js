@@ -4,12 +4,16 @@
 /* 测试项目 */
 // 1. addSource, addMutiSource 函数中表单的功能
 // 2. getRssFeedFromURL 函数中的错误处理：能否跳转到正确的表单
-// 
+// 3. 输入不是链接，能否正确处理
+// 4. 显示正确的数组或对象
+// 5. 为什么有时候会出现两个表单
+
+// TODO: 启动脚本时备份一次json文件
 
 // 命令注册
 mc.regPlayerCmd("rss", "获取 RSS Feeds", addSource);
 
-// 常量
+// 常量与全局变量
 const { parse } = require('rss-to-json');
 const playerDataPath = "plugins/RssReader/playerData.json";
 const elementName = {
@@ -25,19 +29,37 @@ const elementName = {
     id: "ID",
     author: "作者"
 };
-const labelFormat = "************%%************";
+const defaultLabelFormat = "§l********§r %% §l********§r";
+const defaultContentFormat = "%%";
 const defaultIndent = 3;
 const redFont = "§c";
 const greenFont = "§a";
 const grayFont = "§7";
+const loadingDots = ["▁", "▂", "▃", "▄","▄", "▅","▅", "▆","▆", "▇", "█","█","█","█","█", "▇", "▆", "▅", "▄", "▃","▃", "▂","▂", "▁","▁","▁"];
+let loadingDotsIndex = 0;
+let timerIsUsing = 0;
+let timerID = null;
+
+// test //
+// let rss; // testUrl: https://www.52pojie.cn/forum.php?mod=rss&fid=16
+// let tUrl = "https://www.minebbs.com/forums/-/index.rss";
+// getRssFeedFromURLdebug(tUrl, (rss) => {
+//     saveToFile("test", rss, tUrl);
+// });
+
+// async function getRssFeedFromURLdebug(url, callback) {
+//     let rss = await parse(url);
+//     callback(rss);
+// }
+// test //
 
 // 界面函数
 function addSource(pl, label, inputedText, prevFuncData) {
     // label: 提示信息 | inputedText: 输入框中的文本
-    let funcData = [Array.from(arguments), arguments.callee.name];
 
-    if (valueNotProvided(label)) label = "";
-    if (valueNotProvided(inputedText)) inputedText = "";
+    if (valueNotProvided(label)) label = arguments[1] = "";
+    if (valueNotProvided(inputedText)) inputedText = arguments[2] = "";
+    if (valueNotProvided(prevFuncData)) prevFuncData = arguments[4] = new Array();
 
     let form = mc.newCustomForm()
         .setTitle("添加RSS源")    // testURL: https://www.minebbs.com/forums/-/index.rss
@@ -47,12 +69,16 @@ function addSource(pl, label, inputedText, prevFuncData) {
     pl.sendForm(form, (pl, data) => {
         if (data != null) {
             if (data[0] == "0") {
-                selectInputCount(pl, funcData);
+                selectInputCount(pl, prevFuncData);
+            } else if (isBlank(data[0])) {
+                addSource(pl, "§c请输入RSS地址", "", prevFuncData);
             } else {
                 var rss;
+                inputedText = data[0];
+                let funcData = [Array.from(arguments), arguments.callee.name];
                 getRssFeedFromURL(pl, data[0], (rss) => {
-                    addSource(pl, '成功添加: ' + rss.title, funcData[0][2], funcData);
-                    // TODO: 保存到文件
+                    addSource(pl, '成功: ' + rss.title, data[0], funcData);
+                    saveToFile(pl.xuid, rss, data[0]);
                 }, funcData);
             }
         } else {
@@ -71,22 +97,25 @@ function selectInputCount(pl, prevFuncData) {
             addMutiSource(pl, "", data[0], "", prevFuncData);
         } else {
             // todo: 玩家关闭了表单, 返回上一级
+            if (prevFuncData[1] == "mainMenu") {
+                // mainMenu(pl, prevFuncData[0][1], prevFuncData[0][2], prevFuncData[0][3]);
+            }
         }
     });
 }
 
 function addMutiSource(pl, label, inputCount, inputedText, prevFuncData) {
     // label: 提示信息 | inputCount: 文本框数量 | inputedText: [数组]输入框中的文本
-    let funcData = [Array.from(arguments), arguments.callee.name];
 
-    if (valueNotProvided(label)) label = "";
-    if (valueNotProvided(inputCount)) inputCount = 2;
-    if (inputedText.length == 0) { // TOTEST: 是否能够正确判断inputedText
-        inputedText = [];
+    if (valueNotProvided(label)) label = arguments[1] = "";
+    if (valueNotProvided(inputCount)) inputCount = arguments[2] = 2;
+    if (valueNotProvided(inputedText)) {
+        inputedText = arguments[3] = new Array(inputCount);
         for (let i = 0; i < inputCount; i++) {
             inputedText[i] = "";
         }
     }
+    if (valueNotProvided(prevFuncData)) prevFuncData = arguments[4] = new Array();
 
     let form = mc.newCustomForm()
         .setTitle("添加 RSS 源")
@@ -98,18 +127,24 @@ function addMutiSource(pl, label, inputCount, inputedText, prevFuncData) {
 
     form.addLabel(label);
 
-    pl.sendForm(form, (pl, data) => {
+    pl.sendForm(form, (pl, data) => {    // testURL: https://www.minebbs.com/forums/-/index.rss
         if (data != null) {
             let rss, url = "";
             for (let i = 1; i <= inputCount; i++) {
                 url += data[i];
             }
-            for (let i = 1; i <= inputCount; i++) {
-                inputedText[i - 1] = data[i];
+            if (!isBlank(url)) {
+                for (let i = 1; i <= inputCount; i++) {
+                    inputedText[i - 1] = data[i];
+                }
+                let funcData = [Array.from(arguments), arguments.callee.name];
+                getRssFeedFromURL(pl, url, (rss) => {
+                    addMutiSource(pl, '成功添加: ' + rss.title, inputCount, inputedText, funcData);
+                    saveToFile(pl.xuid, rss, url);
+                }, funcData);
+            } else {
+                addMutiSource(pl, "§c请输入RSS地址", inputCount, inputedText, prevFuncData);
             }
-            getRssFeedFromURL(pl, url, (rss) => {
-                addMutiSource(pl, '成功添加: ' + rss.title, inputCount, inputedText, funcData);
-            }, funcData);
         } else {
             // TODO: 玩家关闭了表单, 调用上一级函数
         }
@@ -119,12 +154,18 @@ function addMutiSource(pl, label, inputCount, inputedText, prevFuncData) {
 // 功能函数
 async function getRssFeedFromURL(pl, url, callback, prevFuncData) { /* 从URL获取RSS Feed */
     try {
-        pl.tell("正在访问 URL: " + url); // todo: 后面改成subtitle加载形式
+        pl.addTag("isGettingRss"); // log("[138] Tag added: isGettingRss");
+        enableTimer(); // log("[139] Timer enabled");
+        timerIsUsing++; 
         let rss = await parse(url);
         callback(rss);
+        timerIsUsing--; 
+        disableTimer(); // log("[144] Timer disabled");
+        pl.removeTag("isGettingRss"); // log("[145] Tag removed: isGettingRss");
     } catch (err) {
-        // log(err);
-        log(prevFuncData);
+        timerIsUsing--; // log(err);
+        disableTimer(); // log("[150] Timer disabled" + "timerIsUsing: " + timerIsUsing);
+        pl.removeTag("isGettingRss"); // log("[151] Tag removed: isGettingRss");
         if (prevFuncData[1] == "addSource") {
             addSource(pl, '获取 Rss Feed 时发生错误: ' + redFont + err.code, prevFuncData[0][2], prevFuncData);
         } else if (prevFuncData[1] == "addMutiSource") {
@@ -133,10 +174,68 @@ async function getRssFeedFromURL(pl, url, callback, prevFuncData) { /* 从URL获
     }
 }
 
-function saveToFile(pl, rss) {
-    const playerData = new JsonConfigFile(playerDataPath);
+function saveToFile(xuid, rss, url) {
+    let playerData = new JsonConfigFile(playerDataPath);
+    let myData = playerData.get(xuid);
+    if (myData == null) myData = new Array();
+    let rssCount = myData.length;
+    let rssIndex = -1;
 
-    // 如果key不存在则创建，否则获取并与现有的值比较，如果相同则不保存
+    for (let i = 0; i < rssCount; i++) { // 遍历myData数组，寻找是否已经存在该RSS源
+        if (myData[i]["url"] == url) {
+            rssIndex = i;
+            break;
+        }
+    }
+
+    if (rssIndex != -1) { // 存在该订阅时仅更新标题
+        if (myData[rssIndex]["title"] != rss.title) myData[rssIndex]["title"] = rss.title;
+    } else {                                          // 先判断itf[i]或hef[i]是否存在于排除列表itl或hel中，再判断是否显示
+        let hel = new Array(); // hel: 头部元素排除列表
+        let itl = new Array(); // itl: Items元素排除列表
+        let hef = new Array(); // hef: 头部元素显示格式
+        let itf = new Array(); // itf: Items元素显示格式
+
+        for (let key in rss) {
+            if (key != "title" && key != "description" && key != "link" && key != "created") {
+                hel.push(key);
+            } else {
+                let showLabel = 1;
+                let labelFormat = null; // null: 使用默认格式
+                let contentFormat = null;
+                if (key == "title" || key == "description") showLabel = 0;
+                if (key == "title") contentFormat = "§l%%§r";
+
+                hef.push([key, showLabel, labelFormat, contentFormat]);
+            }
+        }
+
+        let rssItems = rss["items"][0]; // log("rssItems: " + rssItems);
+        for (let key in rssItems) {
+            if (key != "title" && key != "description" && key != "link" && key != "published") {
+                itl.push(key);
+            } else {
+                let showLabel = 1;
+                let labelFormat = null;
+                let contentFormat = null;
+                if (key == "title" || key == "description") showLabel = 0;
+                if (key == "title") contentFormat = "§l%%§r";
+
+                itf.push([key, showLabel, labelFormat, contentFormat]);
+            }
+        }
+
+        myData.push({
+            "title": rss.title,
+            "url": url,
+            "hel": hel,
+            "hef": hef,
+            "itl": itl,
+            "itf": itf
+        });
+    }
+    
+    playerData.set(xuid, myData);
 }
 
 function replaceBetweenPercentSigns(str1, str2) { /* 替换字符串中所有百分号之间的内容 */
@@ -215,10 +314,40 @@ function printObjectKeyAndType(obj) { /* 打印对象的键和键对应的值的
 }
 
 function valueNotProvided(varible) { /* 判断值是否未提供 */
-    return varible == null || varible == undefined || Array.isArray(varible);
+    return varible == null || varible == undefined || varible.length == 0;
 }
 
-// 创建计时器
+function isBlank(str) {
+    if (typeof str !== "string") {
+        return false; // 如果参数不是字符串，返回false
+    }
+    for (let i = 0; i < str.length; i++) {
+        if (str[i] !== " ") {
+            return false; // 如果字符串中有任何非空格字符，返回false
+        }
+    }
+    return true; // 如果字符串中全是空格或为空字符串，返回true
+}
 
+function showLoadingInfo() {
+    mc.runcmdEx("title @a[tag=isGettingRss] actionbar " + loadingDots[loadingDotsIndex] + " 正在获取RSS");
+}
 
-// 销毁计时器
+function timer() {
+    loadingDotsIndex++;
+    if (loadingDotsIndex >= loadingDots.length) {
+        loadingDotsIndex = 0;
+    }
+    showLoadingInfo()
+}
+
+function enableTimer() {
+    if (timerID == null) timerID = setInterval(timer, 50);
+}
+
+function disableTimer() {
+    if (timerID != null && timerIsUsing == 0) {
+        clearInterval(timerID);
+        timerID = null;
+    }
+}
