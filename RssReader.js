@@ -6,12 +6,12 @@
 // 2. getRssFeedFromURL 函数中的错误处理：能否跳转到正确的表单
 // 3. 输入不是链接，能否正确处理
 // 4. 显示正确的数组或对象
-// 5. 为什么有时候会出现两个表单
+// 5. 为什么在输入完链接提交后会出现两个表单，一个undefined，一个正常的
 
 // TODO: 启动脚本时备份一次json文件
 
 // 命令注册
-mc.regPlayerCmd("rss", "获取 RSS Feeds", addSource);
+mc.regPlayerCmd("rss", "获取 RSS Feeds", mainMenu);
 
 // 常量与全局变量
 const { parse } = require('rss-to-json');
@@ -54,12 +54,49 @@ let timerID = null;
 // test //
 
 // 界面函数
+function mainMenu(pl, prevFuncData) {
+    let funcData = [Array.from(arguments), arguments.callee.name];
+    let playerData = new JsonConfigFile(playerDataPath);
+    let content = `当前用户: ${pl.realName}\n`;
+    let myData = playerData.get(pl.xuid); log(myData + " " + typeof myData);
+    if (myData == null) {
+        myData = new Array();
+        playerData.set(pl.xuid, myData);
+    }
+    let rssCount = myData.length;
+
+    let form = mc.newSimpleForm()
+        .setTitle("RSS Reader")
+        .setContent(content)
+        .addButton("[ 添加 RSS 源 ]") // id: 0
+        .addButton("[ 管理 RSS ]"); // id: 1
+
+    for (let i = 0; i < rssCount; i++) {
+        form.addButton(myData[i]["title"]); // id: 2 ~ 2 + rssCount - 1
+    }
+
+    pl.sendForm(form, (pl, data) => {
+        if (data != null) {
+            switch (data) {
+                case 0:
+                    addSource(pl, "", "", funcData);
+                    break;
+                case 1:
+                    // manageRss(pl, funcData); // TODO: 管理RSS源
+                    break;
+            }
+        } else {
+
+        }
+    });
+}
+
 function addSource(pl, label, inputedText, prevFuncData) {
     // label: 提示信息 | inputedText: 输入框中的文本
 
     if (valueNotProvided(label)) label = arguments[1] = "";
     if (valueNotProvided(inputedText)) inputedText = arguments[2] = "";
-    if (valueNotProvided(prevFuncData)) prevFuncData = arguments[4] = new Array();
+    if (valueNotProvided(prevFuncData)) prevFuncData = arguments[3] = new Array();
 
     let form = mc.newCustomForm()
         .setTitle("添加RSS源")    // testURL: https://www.minebbs.com/forums/-/index.rss
@@ -68,21 +105,21 @@ function addSource(pl, label, inputedText, prevFuncData) {
 
     pl.sendForm(form, (pl, data) => {
         if (data != null) {
+            inputedText = data[0];
+            let funcData = [Array.from(arguments), arguments.callee.name];
             if (data[0] == "0") {
-                selectInputCount(pl, prevFuncData);
+                selectInputCount(pl, funcData);
             } else if (isBlank(data[0])) {
                 addSource(pl, "§c请输入RSS地址", "", prevFuncData);
             } else {
                 var rss;
-                inputedText = data[0];
-                let funcData = [Array.from(arguments), arguments.callee.name];
                 getRssFeedFromURL(pl, data[0], (rss) => {
                     addSource(pl, '成功: ' + rss.title, data[0], funcData);
                     saveToFile(pl.xuid, rss, data[0]);
                 }, funcData);
             }
         } else {
-            // todo: 玩家关闭了表单, 返回上一级
+            mainMenu(pl);
         }
     });
 }
@@ -97,8 +134,8 @@ function selectInputCount(pl, prevFuncData) {
             addMutiSource(pl, "", data[0], "", prevFuncData);
         } else {
             // todo: 玩家关闭了表单, 返回上一级
-            if (prevFuncData[1] == "mainMenu") {
-                // mainMenu(pl, prevFuncData[0][1], prevFuncData[0][2], prevFuncData[0][3]);
+            if (prevFuncData[1] == "addSource") {
+                addSource(pl, prevFuncData[0][1], prevFuncData[0][2], prevFuncData[0][3]);
             }
         }
     });
@@ -139,20 +176,20 @@ function addMutiSource(pl, label, inputCount, inputedText, prevFuncData) {
                 }
                 let funcData = [Array.from(arguments), arguments.callee.name];
                 getRssFeedFromURL(pl, url, (rss) => {
-                    addMutiSource(pl, '成功添加: ' + rss.title, inputCount, inputedText, funcData);
+                    addMutiSource(pl, '成功: ' + rss.title, inputCount, inputedText, funcData);
                     saveToFile(pl.xuid, rss, url);
                 }, funcData);
             } else {
                 addMutiSource(pl, "§c请输入RSS地址", inputCount, inputedText, prevFuncData);
             }
         } else {
-            // TODO: 玩家关闭了表单, 调用上一级函数
+            mainMenu(pl);
         }
     });
 }
 
 // 功能函数
-async function getRssFeedFromURL(pl, url, callback, prevFuncData) { /* 从URL获取RSS Feed */
+async function getRssFeedFromURL(pl, url, callback, prevFuncData) {
     try {
         pl.addTag("isGettingRss"); // log("[138] Tag added: isGettingRss");
         enableTimer(); // log("[139] Timer enabled");
