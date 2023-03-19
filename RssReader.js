@@ -10,13 +10,20 @@
 
 // TODO: 启动脚本时备份一次json文件
 
+
+try { // debug
+    timestampToLocalString("aaaaaa");
+} catch (e) {
+    log(e)
+}
+
 // 命令注册
 mc.regPlayerCmd("rss", "获取 RSS Feeds", mainMenu);
 
 // 常量与全局变量
 const { parse } = require('rss-to-json');
 const playerDataPath = "plugins/RssReader/playerData.json";
-const elementName = {
+const elementLabelMap = {
     title: "标题",
     description: "描述",
     created: "创建时间",
@@ -29,7 +36,7 @@ const elementName = {
     id: "ID",
     author: "作者"
 };
-const defaultLabelFormat = "§l********§r %% §l********§r";
+const defaultLabelFormat = "§7［§r %% §7］§r\n";
 const defaultContentFormat = "%%";
 const defaultIndent = 3;
 const redFont = "§c";
@@ -40,35 +47,23 @@ let loadingDotsIndex = 0;
 let timerIsUsing = 0;
 let timerID = null;
 
-// test //
-// let rss; // testUrl: https://www.52pojie.cn/forum.php?mod=rss&fid=16
-// let tUrl = "https://www.minebbs.com/forums/-/index.rss";
-// getRssFeedFromURLdebug(tUrl, (rss) => {
-//     saveToFile("test", rss, tUrl);
-// });
-
-// async function getRssFeedFromURLdebug(url, callback) {
-//     let rss = await parse(url);
-//     callback(rss);
-// }
-// test //
-
 // 界面函数
-function mainMenu(pl, prevFuncData) {
+function mainMenu(pl, text) {
     let funcData = [Array.from(arguments), arguments.callee.name];
     let playerData = new JsonConfigFile(playerDataPath);
-    let content = `当前用户: ${pl.realName}\n`;
-    let myData = playerData.get(pl.xuid); log(myData + " " + typeof myData);
+    let myData = playerData.get(pl.xuid); // log(myData + " " + typeof myData);
     if (myData == null) {
         myData = new Array();
         playerData.set(pl.xuid, myData);
     }
+    if (text == null) text = "";
     let rssCount = myData.length;
+    let content = `已添加 ${rssCount} 个订阅\n${text}`;
 
     let form = mc.newSimpleForm()
-        .setTitle("RSS Reader")
+        .setTitle("RSS 订阅")
         .setContent(content)
-        .addButton("[ 添加 RSS 源 ]") // id: 0
+        .addButton("[ 添加 RSS ]") // id: 0
         .addButton("[ 管理 RSS ]"); // id: 1
 
     for (let i = 0; i < rssCount; i++) {
@@ -82,12 +77,123 @@ function mainMenu(pl, prevFuncData) {
                     addSource(pl, "", "", funcData);
                     break;
                 case 1:
-                    // manageRss(pl, funcData); // TODO: 管理RSS源
+                    // manageRss(pl, funcData); // TODO: 管理RSS
                     break;
+                default:
+                    getRssFeedFromURL(pl, myData[data - 2]["url"], (rss) => {
+                        viewRss(pl, rss, data - 2, funcData);
+                    }, funcData);
             }
         } else {
 
         }
+    });
+}
+
+function viewRss(pl, rss, index, prevFuncData) {
+    let funcData = [Array.from(arguments), arguments.callee.name];
+    let playerData = new JsonConfigFile(playerDataPath);
+    let myData = playerData.get(pl.xuid);
+    let hel = myData[index]["hel"];
+    let hef = myData[index]["hef"];
+    let allContent = "";
+    let form = mc.newSimpleForm()
+        .setTitle(rss.title)
+        .addButton("[ < 返回 ]"); // id: 0
+
+    for (let i = 0; i < rss.items.length; i++) {
+        form.addButton(rss.items[i].title); // id: 1 ~ 1 + rss.items.length - 1
+    }
+
+    // 先判断hef[i]是否存在于排除列表hel中，再判断是否显示
+    for (let i = 0; i < hef.length; i++) {
+        elementName = hef[i][0];
+        if (hel.indexOf(elementName) == -1) {
+            // 获取配置
+            showLabel = hef[i][1];
+            labelFormat = hef[i][2];
+            contentFormat = hef[i][3];
+            if (showLabel == null) showLabel = 1;
+            if (contentFormat == null) contentFormat = defaultContentFormat;
+
+            content = rss[elementName]; // TODO: 当content为数组或对象时，如何处理
+            if (elementName == "created" || elementName == "updated" || elementName == "published") {
+                // TODO: 判断是否为时间戳
+                content = timestampToLocalString(content);
+            }
+            content = replaceBetweenPercentSigns(contentFormat, content);
+
+            if (showLabel) {
+                if (labelFormat == null) labelFormat = defaultLabelFormat;
+                if (elementLabelMap[elementName]) elementName = elementLabelMap[elementName];
+                label = replaceBetweenPercentSigns(labelFormat, elementName);
+                allContent += label + content + "\n\n";
+            } else {
+                allContent += content + "\n\n";
+            }
+        }
+    }
+    form.setContent(allContent);
+
+    pl.sendForm(form, (pl, data) => {
+        if (data != null) {
+            switch (data) {
+                case 0:
+                    mainMenu(pl, null);
+                    break;
+                default:
+                    viewRssItem(pl, rss.items[data - 1], funcData);
+                    break;
+            }
+        } else {
+            mainMenu(pl, null);
+        }
+    });
+}
+
+function viewRssItem(pl, item, prevFuncData) {
+    let form = mc.newCustomForm()
+        .setTitle(prevFuncData[0][1].title + " - 详细内容")
+
+    // 根据json文件中的设置来显示内容
+    let playerData = new JsonConfigFile(playerDataPath);
+    let myData = playerData.get(pl.xuid);
+    let index = prevFuncData[0][2];
+    let iel = myData[index]["iel"];
+    let itf = myData[index]["itf"];
+    let elementName, showLabel, labelFormat, contentFormat, label, content;
+
+    // 先判断itf[i]是否存在于排除列表iel中，再判断是否显示
+    for (let i = 0; i < itf.length; i++) {
+        elementName = itf[i][0];
+        if (iel.indexOf(elementName) == -1) {
+            // 获取配置
+            showLabel = itf[i][1];
+            labelFormat = itf[i][2];
+            contentFormat = itf[i][3];
+            if (showLabel == null) showLabel = 1;
+            if (contentFormat == null) contentFormat = defaultContentFormat;
+
+            content = item[elementName];
+            if (elementName == "created" || elementName == "updated" || elementName == "published") {
+                // 判断是否为时间戳
+                content = timestampToLocalString(content);
+            }
+            content = replaceBetweenPercentSigns(contentFormat, content);
+
+            if (showLabel) {
+                if (labelFormat == null) labelFormat = defaultLabelFormat;
+                if (elementLabelMap[elementName]) elementName = elementLabelMap[elementName];
+                label = replaceBetweenPercentSigns(labelFormat, elementName);
+                form.addLabel(label + content);
+            } else {
+                form.addLabel(content);
+            }
+        }
+    }
+
+    pl.sendForm(form, (pl, data) => {
+        viewRss(pl, prevFuncData[0][1], index, prevFuncData);
     });
 }
 
@@ -99,7 +205,7 @@ function addSource(pl, label, inputedText, prevFuncData) {
     if (valueNotProvided(prevFuncData)) prevFuncData = arguments[3] = new Array();
 
     let form = mc.newCustomForm()
-        .setTitle("添加RSS源")    // testURL: https://www.minebbs.com/forums/-/index.rss
+        .setTitle("添加 RSS")    // testURL: https://www.minebbs.com/forums/-/index.rss
         .addInput("在下面文本框中输入RSS地址", "链接过长？输入§l0§r然后点击“提交”按钮来分段输入", inputedText) // id: 0
         .addLabel(label);
 
@@ -155,7 +261,7 @@ function addMutiSource(pl, label, inputCount, inputedText, prevFuncData) {
     if (valueNotProvided(prevFuncData)) prevFuncData = arguments[4] = new Array();
 
     let form = mc.newCustomForm()
-        .setTitle("添加 RSS 源")
+        .setTitle("添加 RSS")
         .addLabel("请在下面的输入框中输入RSS地址，每个输入框最多输入§l100§r个字符。"); // id: 0
 
     for (let i = 0; i < inputCount; i++) {
@@ -204,9 +310,11 @@ async function getRssFeedFromURL(pl, url, callback, prevFuncData) {
         disableTimer(); // log("[150] Timer disabled" + "timerIsUsing: " + timerIsUsing);
         pl.removeTag("isGettingRss"); // log("[151] Tag removed: isGettingRss");
         if (prevFuncData[1] == "addSource") {
-            addSource(pl, '获取 Rss Feed 时发生错误: ' + redFont + err.code, prevFuncData[0][2], prevFuncData);
+            addSource(pl, '获取 RSS 时发生错误: ' + redFont + err.code, prevFuncData[0][2], prevFuncData);
         } else if (prevFuncData[1] == "addMutiSource") {
-            addMutiSource(pl, '获取 Rss Feed 时发生错误: ' + redFont + err.code, prevFuncData[0][2], prevFuncData[0][3], prevFuncData);
+            addMutiSource(pl, '获取 RSS 时发生错误: ' + redFont + err.code, prevFuncData[0][2], prevFuncData[0][3], prevFuncData);
+        } else if (prevFuncData[1] == "mainMenu") {
+            mainMenu(pl, '\n获取 RSS 时发生错误: ' + redFont + err.code, prevFuncData);
         }
     }
 }
@@ -218,7 +326,7 @@ function saveToFile(xuid, rss, url) {
     let rssCount = myData.length;
     let rssIndex = -1;
 
-    for (let i = 0; i < rssCount; i++) { // 遍历myData数组，寻找是否已经存在该RSS源
+    for (let i = 0; i < rssCount; i++) { // 遍历myData数组，寻找是否已经存在该RSS
         if (myData[i]["url"] == url) {
             rssIndex = i;
             break;
@@ -227,9 +335,9 @@ function saveToFile(xuid, rss, url) {
 
     if (rssIndex != -1) { // 存在该订阅时仅更新标题
         if (myData[rssIndex]["title"] != rss.title) myData[rssIndex]["title"] = rss.title;
-    } else {                                          // 先判断itf[i]或hef[i]是否存在于排除列表itl或hel中，再判断是否显示
+    } else {
         let hel = new Array(); // hel: 头部元素排除列表
-        let itl = new Array(); // itl: Items元素排除列表
+        let iel = new Array(); // iel: Items元素排除列表
         let hef = new Array(); // hef: 头部元素显示格式
         let itf = new Array(); // itf: Items元素显示格式
 
@@ -250,7 +358,7 @@ function saveToFile(xuid, rss, url) {
         let rssItems = rss["items"][0]; // log("rssItems: " + rssItems);
         for (let key in rssItems) {
             if (key != "title" && key != "description" && key != "link" && key != "published") {
-                itl.push(key);
+                iel.push(key);
             } else {
                 let showLabel = 1;
                 let labelFormat = null;
@@ -267,7 +375,7 @@ function saveToFile(xuid, rss, url) {
             "url": url,
             "hel": hel,
             "hef": hef,
-            "itl": itl,
+            "iel": iel,
             "itf": itf
         });
     }
@@ -275,8 +383,8 @@ function saveToFile(xuid, rss, url) {
     playerData.set(xuid, myData);
 }
 
-function replaceBetweenPercentSigns(str1, str2) { /* 替换字符串中所有百分号之间的内容 */
-    return str1.replace(/%.*?%/g, str2);
+function replaceBetweenPercentSigns(format, content) { /* 替换字符串中所有百分号之间的内容 */
+    return format.replace(/%.*?%/g, content);
 }
 
 function timestampToLocalString(timestamp) { /* 时间戳转换为本地时间并格式化输出 */
