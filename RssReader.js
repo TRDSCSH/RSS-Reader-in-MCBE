@@ -11,6 +11,7 @@
 // [notPlanned] 7. 在 mainMenu 函数中，当点击订阅源时，将订阅移到最前面
 // [notPlanned] 8. 重命名订阅源
 // [notPlanned] 9. 启动脚本时备份一次json文件
+// [todo] 10. 多人游戏测试
 
 // 命令注册
 mc.regPlayerCmd("rss", "获取 RSS Feeds", mainMenu);
@@ -59,8 +60,8 @@ function mainMenu(pl, text) {
     let form = mc.newSimpleForm()
         .setTitle("RSS 订阅")
         .setContent(content)
-        .addButton("[ 添加 RSS ]") // id: 0
-        .addButton("[ 管理 RSS ]"); // id: 1
+        .addButton("§l＋§r [ 添加 RSS ]") // id: 0
+        .addButton("§l⚒§r [ 管理 RSS ]"); // id: 1
 
     for (let i = 0; i < rssCount; i++) {
         form.addButton(myData[i]["title"]); // id: 2 ~ 2 + rssCount - 1
@@ -90,9 +91,9 @@ function manageRss(pl) {
     let form = mc.newSimpleForm()
         .setTitle("管理 RSS")
         .setContent(`管理 ${pl.realName} 的 RSS 订阅`)
-        .addButton("[ < 返回 ]") // id: 0
-        .addButton("[ 删除 RSS ]") // id: 1
-        .addButton("[ 修改 RSS 显示格式 ]"); // id: 2
+        .addButton("§l<§r [ 返回 ]") // id: 0
+        .addButton("§lｘ§r [ 删除 RSS ]") // id: 1
+        .addButton("§l✍§r [ 修改 RSS 显示格式 ]"); // id: 2
 
     pl.sendForm(form, (pl, data) => {
         if (data != null) {
