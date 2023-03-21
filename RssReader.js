@@ -2,20 +2,13 @@
 /* [函数名, [函数已接受的参数]] */
 
 /* 测试项目 */
-// 1. addSource, addMutiSource 函数中表单的功能
-// 2. getRssFeedFromURL 函数中的错误处理：能否跳转到正确的表单
-// 3. 输入不是链接，能否正确处理
-// 4. 显示正确的数组或对象
-// 5. 为什么在输入完链接提交后会出现两个表单，一个undefined，一个正常的
+// [ok] 1. addSource, addMutiSource 函数中表单的功能
+// [ok] 2. getRssFeedFromURL 函数中的错误处理：能否跳转到正确的表单
+// [ok] 3. 输入不是链接，能否正确处理
+// [todo] 4. 显示正确的数组或对象
+// [unknown] 5. 为什么在输入完链接提交后会出现两个表单，一个undefined，一个正常的
 
 // TODO: 启动脚本时备份一次json文件
-
-
-try { // debug
-    timestampToLocalString("aaaaaa");
-} catch (e) {
-    log(e)
-}
 
 // 命令注册
 mc.regPlayerCmd("rss", "获取 RSS Feeds", mainMenu);
@@ -43,6 +36,7 @@ const redFont = "§c";
 const greenFont = "§a";
 const grayFont = "§7";
 const loadingDots = ["▁", "▂", "▃", "▄","▄", "▅","▅", "▆","▆", "▇", "█","█","█","█","█", "▇", "▆", "▅", "▄", "▃","▃", "▂","▂", "▁","▁","▁"];
+const itemCountLimit = 100;
 let loadingDotsIndex = 0;
 let timerIsUsing = 0;
 let timerID = null;
@@ -81,7 +75,7 @@ function mainMenu(pl, text) {
                     break;
                 default:
                     getRssFeedFromURL(pl, myData[data - 2]["url"], (rss) => {
-                        viewRss(pl, rss, data - 2, funcData);
+                        viewRss(pl, rss, data - 2, null, funcData);
                     }, funcData);
             }
         } else {
@@ -90,7 +84,7 @@ function mainMenu(pl, text) {
     });
 }
 
-function viewRss(pl, rss, index, prevFuncData) {
+function viewRss(pl, rss, index, page, prevFuncData) {
     let funcData = [Array.from(arguments), arguments.callee.name];
     let playerData = new JsonConfigFile(playerDataPath);
     let myData = playerData.get(pl.xuid);
@@ -98,11 +92,17 @@ function viewRss(pl, rss, index, prevFuncData) {
     let hef = myData[index]["hef"];
     let allContent = "";
     let form = mc.newSimpleForm()
-        .setTitle(rss.title)
+        .setTitle(`${rss.title}`)
         .addButton("[ < 返回 ]"); // id: 0
 
-    for (let i = 0; i < rss.items.length; i++) {
-        form.addButton(rss.items[i].title); // id: 1 ~ 1 + rss.items.length - 1
+    if (page == null) page = 1;
+    let maxPage = Math.ceil(rss.items.length / itemCountLimit);
+    if (page > maxPage) page = maxPage;
+    let start = (page - 1) * itemCountLimit;
+    let end = page * itemCountLimit;
+    if (end > rss.items.length) end = rss.items.length;
+    for (let i = start; i < end; i++) {
+        form.addButton(`${rss.items[i].title}`); // id: 1 ~ 1 + rss.items.length - 1
     }
 
     // 先判断hef[i]是否存在于排除列表hel中，再判断是否显示
@@ -193,7 +193,7 @@ function viewRssItem(pl, item, prevFuncData) {
     }
 
     pl.sendForm(form, (pl, data) => {
-        viewRss(pl, prevFuncData[0][1], index, prevFuncData);
+        viewRss(pl, prevFuncData[0][1], index, null, prevFuncData);
     });
 }
 
@@ -342,7 +342,7 @@ function saveToFile(xuid, rss, url) {
         let itf = new Array(); // itf: Items元素显示格式
 
         for (let key in rss) {
-            if (key != "title" && key != "description" && key != "link" && key != "created") {
+            if (key != "description") {
                 hel.push(key);
             } else {
                 let showLabel = 1;
@@ -390,6 +390,7 @@ function replaceBetweenPercentSigns(format, content) { /* 替换字符串中所�
 function timestampToLocalString(timestamp) { /* 时间戳转换为本地时间并格式化输出 */
     // 创建一个Date对象
     let date = new Date(timestamp);
+    let result = "";
     // 获取本地日期字符串
     let dateString = date.toLocaleDateString("zh-CN", {
         year: "numeric",
@@ -403,7 +404,9 @@ function timestampToLocalString(timestamp) { /* 时间戳转换为本地时间�
         second: "2-digit"
     });
     // 拼接并返回结果
-    return dateString + " " + timeString;
+    result = dateString + " " + timeString;
+    if (result == "Invalid Date Invalid Date") result = timestamp;
+    return result;
 }
 
 function arr2str(arr) { /* 将数组转换为字符串 */
