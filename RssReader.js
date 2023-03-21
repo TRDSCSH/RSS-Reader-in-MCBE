@@ -60,8 +60,8 @@ function mainMenu(pl, text) {
     let form = mc.newSimpleForm()
         .setTitle("RSS 订阅")
         .setContent(content)
-        .addButton("§l＋§r [ 添加 RSS ]") // id: 0
-        .addButton("§l⚒§r [ 管理 RSS ]"); // id: 1
+        .addButton("§r[ 添加 RSS ]") // id: 0
+        .addButton("§r[ 管理 RSS ]"); // id: 1
 
     for (let i = 0; i < rssCount; i++) {
         form.addButton(myData[i]["title"]); // id: 2 ~ 2 + rssCount - 1
@@ -91,9 +91,9 @@ function manageRss(pl) {
     let form = mc.newSimpleForm()
         .setTitle("管理 RSS")
         .setContent(`管理 ${pl.realName} 的 RSS 订阅`)
-        .addButton("§l<§r [ 返回 ]") // id: 0
-        .addButton("§lｘ§r [ 删除 RSS ]") // id: 1
-        .addButton("§l✍§r [ 修改 RSS 显示格式 ]"); // id: 2
+        .addButton("§r[ < 返回 ]") // id: 0
+        .addButton("§r[ 删除 RSS ]") // id: 1
+        .addButton("§r[ 修改 RSS 显示格式 ]"); // id: 2
 
     pl.sendForm(form, (pl, data) => {
         if (data != null) {
@@ -102,13 +102,78 @@ function manageRss(pl) {
                     mainMenu(pl);
                     break;
                 case 1:
-                    // deleteSource(pl);
+                    deleteSource(pl);
                     break;
                 case 2:
                 // modifyFormat(pl);
             }
         } else {
             mainMenu(pl);
+        }
+    });
+}
+
+function deleteSource(pl, message) {
+    if (message == null) message = "§7请将要删除订阅源的开关切换为开启, 然后点击“提交”按钮以删除选中的订阅";
+    let playerData = new JsonConfigFile(playerDataPath);
+    let myData = playerData.get(pl.xuid);
+    let rssCount = myData.length;
+    let form = mc.newCustomForm()
+        .setTitle("删除 RSS")
+        .addLabel(`删除 ${pl.realName} 的 RSS 订阅\n\n${message}`)
+    
+    for (let i = 0; i < rssCount; i++) {
+        form.addSwitch(myData[i]["title"]); // id: 1 ~ rssCount
+    }
+
+    pl.sendForm(form, (pl, data) => {
+        if (data != null) {
+            let deleteList = new Array();
+            for (let i = 0; i < rssCount; i++) {
+                if (data[i + 1] == true) {
+                    deleteList.push(i);
+                }
+            }
+            if (deleteList.length == 0) {
+                deleteSource(pl);
+                return;
+            }
+            deleteSourceConfirm(pl, pl.xuid, deleteList);
+        } else {
+            manageRss(pl);
+        }
+    });
+}
+
+function deleteSourceConfirm(pl, xuid, deleteList) {
+    // deleteList: [数组]存储需要删除的序号
+    let playerData = new JsonConfigFile(playerDataPath);
+    let myData = playerData.get(xuid);
+    let nameListString = "";
+    for (let i = 0; i < deleteList.length; i++) {
+        nameListString += `§7[#${deleteList[i]}]§r ${myData[deleteList[i]]["title"]}\n`;
+    }
+    let form = mc.newSimpleForm()
+        .setTitle("删除确认")
+        .setContent(`确认删除以下订阅源吗？\n\n${nameListString}`)
+        .addButton("[ 返回 ]") // id: 0
+        .addButton(redFont + "[ 确认 ]"); // id: 1
+
+    pl.sendForm(form, (pl, data) => {
+        if (data != null) {
+            switch (data) {
+                case 0:
+                    deleteSource(pl);
+                    break;
+                case 1:
+                    for (let i = deleteList.length - 1; i >= 0; i--) {
+                        myData.splice(deleteList[i], 1);
+                    }
+                    playerData.set(xuid, myData);
+                    deleteSource(pl, `[提示] 已删除 ${deleteList.length} 个订阅`);
+            }
+        } else {
+            deleteSource(pl);
         }
     });
 }
@@ -142,7 +207,7 @@ function viewRss(pl, rss, index, page, prevFuncData) {
     let allContent = "";
     let form = mc.newSimpleForm()
         .setTitle(`${rss.title}`)
-        .addButton("[ < 返回 ]"); // id: 0
+        .addButton("§r[ < 返回 ]"); // id: 0
 
     if (page == null) page = 1;
     let maxPage = Math.ceil(rss.items.length / itemCountLimit);
@@ -150,7 +215,7 @@ function viewRss(pl, rss, index, page, prevFuncData) {
     let start = (page - 1) * itemCountLimit;
     let end = page * itemCountLimit;
     if (end > rss.items.length) end = rss.items.length;
-    if (maxPage > 1) form.addButton(`[ 页码 ${page} / ${maxPage} ]`); // (id: 1)
+    if (maxPage > 1) form.addButton(`§r[ 页码 ${page} / ${maxPage} ]`); // (id: 1)
     arguments[3] = page;
     for (let i = start; i < end; i++) {
         form.addButton(`${rss.items[i].title}`);
