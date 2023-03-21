@@ -5,10 +5,12 @@
 // [ok] 1. addSource, addMutiSource 函数中表单的功能
 // [ok] 2. getRssFeedFromURL 函数中的错误处理：能否跳转到正确的表单
 // [ok] 3. 输入不是链接，能否正确处理
-// [todo] 4. 显示正确的数组或对象
+// [ok] 4. 显示正确的数组或对象
 // [unknown] 5. 为什么在输入完链接提交后会出现两个表单，一个undefined，一个正常的
-
-// TODO: 启动脚本时备份一次json文件
+// [ok] 6. html标签的处理(灰色)
+// [notPlanned] 7. 在 mainMenu 函数中，当点击订阅源时，将订阅移到最前面
+// [notPlanned] 8. 重命名订阅源
+// [notPlanned] 9. 启动脚本时备份一次json文件
 
 // 命令注册
 mc.regPlayerCmd("rss", "获取 RSS Feeds", mainMenu);
@@ -31,11 +33,11 @@ const elementLabelMap = {
 };
 const defaultLabelFormat = "§7［§r %% §7］§r\n";
 const defaultContentFormat = "%%";
-const defaultIndent = 3;
+const defaultIndent = 2;
 const redFont = "§c";
 const greenFont = "§a";
 const grayFont = "§7";
-const loadingDots = ["▁", "▂", "▃", "▄","▄", "▅","▅", "▆","▆", "▇", "█","█","█","█","█", "▇", "▆", "▅", "▄", "▃","▃", "▂","▂", "▁","▁","▁"];
+const loadingDots = ["▁", "▂", "▃", "▄", "▄", "▅", "▅", "▆", "▆", "▇", "█", "█", "█", "█", "█", "▇", "▆", "▅", "▄", "▃", "▃", "▂", "▂", "▁", "▁", "▁"];
 const itemCountLimit = 80;
 let loadingDotsIndex = 0;
 let timerIsUsing = 0;
@@ -71,7 +73,7 @@ function mainMenu(pl, text) {
                     addSource(pl, "", "", funcData);
                     break;
                 case 1:
-                    // manageRss(pl, funcData); // TODO: 管理RSS
+                    manageRss(pl);
                     break;
                 default:
                     getRssFeedFromURL(pl, myData[data - 2]["url"], (rss) => {
@@ -84,11 +86,37 @@ function mainMenu(pl, text) {
     });
 }
 
+function manageRss(pl) {
+    let form = mc.newSimpleForm()
+        .setTitle("管理 RSS")
+        .setContent(`管理 ${pl.realName} 的 RSS 订阅`)
+        .addButton("[ < 返回 ]") // id: 0
+        .addButton("[ 删除 RSS ]") // id: 1
+        .addButton("[ 修改 RSS 显示格式 ]"); // id: 2
+
+    pl.sendForm(form, (pl, data) => {
+        if (data != null) {
+            switch (data) {
+                case 0:
+                    mainMenu(pl);
+                    break;
+                case 1:
+                    // deleteSource(pl);
+                    break;
+                case 2:
+                // modifyFormat(pl);
+            }
+        } else {
+            mainMenu(pl);
+        }
+    });
+}
+
 function jumpToPage(prevFuncData) { // 跳转到指定页码，适用于 viewRss 函数
     if (prevFuncData[1] != "viewRss") return;
     let maxPage = Math.ceil(prevFuncData[0][1].items.length / itemCountLimit);
     let pl = prevFuncData[0][0];
-    
+
     let form = mc.newCustomForm()
         .setTitle("页码跳转")
         .addSlider(`滑动下方滑块以选择将要跳转的页码\n\n页码`, 1, maxPage, 1, 1);
@@ -138,8 +166,9 @@ function viewRss(pl, rss, index, page, prevFuncData) {
             if (showLabel == null) showLabel = 1;
             if (contentFormat == null) contentFormat = defaultContentFormat;
 
-            content = rss[elementName]; // TODO: 当content为数组或对象时，如何处理
-            if (elementName == "created" || elementName == "updated" || elementName == "published") {
+            content = rss[elementName];
+            content = stringifyContent(content); // 将数组或对象转换为字符串
+            if (elementName == "created" || elementName == "updated" || elementName == "published") { // 时间戳转换
                 content = timestampToLocalString(content);
             }
             content = replaceBetweenPercentSigns(contentFormat, content);
@@ -204,8 +233,8 @@ function viewRssItem(pl, item, prevFuncData) {
             if (contentFormat == null) contentFormat = defaultContentFormat;
 
             content = item[elementName];
+            content = stringifyContent(content);
             if (elementName == "created" || elementName == "updated" || elementName == "published") {
-                // 判断是否为时间戳
                 content = timestampToLocalString(content);
             }
             content = replaceBetweenPercentSigns(contentFormat, content);
@@ -291,10 +320,10 @@ function addMutiSource(pl, label, inputCount, inputedText, prevFuncData) {
 
     let form = mc.newCustomForm()
         .setTitle("添加 RSS")
-        .addLabel("请在下面的输入框中输入RSS地址，每个输入框最多输入§l100§r个字符。"); // id: 0
+        .addLabel("请在下面的输入框中分段输入 RSS 地址，每个输入框最多输入 §l100§r 个字符。"); // id: 0
 
-    for (let i = 0; i < inputCount; i++) {
-        form.addInput(`${grayFont}[${i}]`, `第 ${i} 段`, inputedText[i]); // id: 1 ~ inputCount
+    for (let i = 1; i <= inputCount; i++) {
+        form.addInput(`${grayFont}[${i}]`, `第 ${i} 段`, inputedText[i - 1]); // id: 1 ~ inputCount
     }
 
     form.addLabel(label);
@@ -328,10 +357,10 @@ async function getRssFeedFromURL(pl, url, callback, prevFuncData) {
     try {
         pl.addTag("isGettingRss"); // log("[138] Tag added: isGettingRss");
         enableTimer(); // log("[139] Timer enabled");
-        timerIsUsing++; 
+        timerIsUsing++;
         let rss = await parse(url);
-        callback(rss);
-        timerIsUsing--; 
+        if (isOnline(pl)) callback(rss); // 如果玩家还在线, 则执行回调函数
+        timerIsUsing--;
         disableTimer(); // log("[144] Timer disabled");
         pl.removeTag("isGettingRss"); // log("[145] Tag removed: isGettingRss");
     } catch (err) {
@@ -346,6 +375,14 @@ async function getRssFeedFromURL(pl, url, callback, prevFuncData) {
             mainMenu(pl, '\n获取 RSS 时发生错误: ' + redFont + err.code, prevFuncData);
         }
     }
+}
+
+function isOnline(pl) {
+    let onlinePlayers = mc.getOnlinePlayers();
+    for (let i = 0; i < onlinePlayers.length; i++) {
+        if (onlinePlayers[i].xuid == pl.xuid) return true;
+    }
+    return false;
 }
 
 function saveToFile(xuid, rss, url) {
@@ -408,8 +445,65 @@ function saveToFile(xuid, rss, url) {
             "itf": itf
         });
     }
-    
+
     playerData.set(xuid, myData);
+}
+
+function wrapTags(str) {
+    return str.replace(/<[^>]+>/g, function (match) {
+        return '§7' + match + '§r';
+    });
+}
+
+function stringifyContent(content) {
+    let type = varType(content);
+    if (type == "string") {
+        return wrapTags(content);
+    } else if (type == "array") {
+        return wrapTags(greyOut(JSON.stringify(content, null, defaultIndent)));
+    } else if (type == "object") {
+        return wrapTags(greyOut(JSON.stringify(content, null, defaultIndent)));
+    } else {
+        return content;
+    }
+}
+
+function greyOut(str) {
+    str = str.replace(/[\{\}\[\],"]/g, function (match) {
+        switch (match) {
+            case '{':
+                return '§7{§r';
+            case '}':
+                return '§7}§r';
+            case '[':
+                return '§7[§r';
+            case ']':
+                return '§7]§r';
+            case ',':
+                return '§7,§r';
+            case '"':
+                return '§7"§r';
+            default:
+                return match;
+        }
+    });
+    return str;
+}
+
+function varType(varName) {
+    if (typeof (varName) == "string") {
+        return "string";
+    } else if (typeof (varName) == "object") {
+        if (varName instanceof Array) {
+            return "array";
+        } else if (varName instanceof Object) {
+            return "object";
+        } else {
+            return "other";
+        }
+    } else {
+        return "other";
+    }
 }
 
 function replaceBetweenPercentSigns(format, content) { /* 替换字符串中所有百分号之间的内容 */
@@ -436,58 +530,6 @@ function timestampToLocalString(timestamp) { /* 时间戳转换为本地时间�
     result = dateString + " " + timeString;
     if (result == "Invalid Date Invalid Date") result = timestamp;
     return result;
-}
-
-function arr2str(arr) { /* 将数组转换为字符串 */
-    var string = arr.join(", "); // 使用join方法，用逗号和空格来分隔元素
-    return string;
-}
-
-function printObject(obj, indent) { /* 打印对象 */
-    if (indent == null) indent = defaultIndent;
-    // 遍历对象的所有属性
-    for (let key in obj) {
-        if (typeof obj[key] === "object") {
-            // 如果元素是一个对象，调用printObject函数输出对象内键和键对应的值
-            printObject(obj[key]);
-        } else if (Array.isArray()) {
-            // 如果元素是一个数组，调用printArray函数输出数组内所有值
-            printArray(obj[key]);
-        } else if (obj.hasOwnProperty(key)) { // 如果属性是自身的（不是继承的）
-            // 打印属性名和属性值，用方括号和冒号分隔
-            console.log(" ".repeat(indent) + "[" + key + "] " + obj[key]);
-        }
-    }
-}
-
-function printArray(array) { /* 打印数组 */
-    // 遍历数组的所有元素
-    for (let element of array) {
-        if (typeof element === "object") {
-            // 如果元素是一个对象，调用printObject函数输出对象内键和键对应的值
-            printObject(element);
-        } else if (Array.isArray()) {
-            // 如果元素是一个数组，调用printArray函数输出数组内所有值
-            printArray(element);
-        } else {
-            // 否则，直接打印元素值
-            console.log(element);
-        }
-    }
-}
-
-function printObjectKeyAndType(obj) { /* 打印对象的键和键对应的值的类型 */
-    for (let key in obj) {
-        let type = typeof obj[key];
-        if (type === "object") {
-            if (Array.isArray(obj[key])) {
-                type = "array";
-            } else if (obj[key] === null) {
-                type = "null";
-            }
-        }
-        console.log(key + ": " + type);
-    }
 }
 
 function valueNotProvided(varible) { /* 判断值是否未提供 */
