@@ -36,7 +36,7 @@ const redFont = "§c";
 const greenFont = "§a";
 const grayFont = "§7";
 const loadingDots = ["▁", "▂", "▃", "▄","▄", "▅","▅", "▆","▆", "▇", "█","█","█","█","█", "▇", "▆", "▅", "▄", "▃","▃", "▂","▂", "▁","▁","▁"];
-const itemCountLimit = 100;
+const itemCountLimit = 80;
 let loadingDotsIndex = 0;
 let timerIsUsing = 0;
 let timerID = null;
@@ -84,6 +84,26 @@ function mainMenu(pl, text) {
     });
 }
 
+function jumpToPage(prevFuncData) { // 跳转到指定页码，适用于 viewRss 函数
+    if (prevFuncData[1] != "viewRss") return;
+    let maxPage = Math.ceil(prevFuncData[0][1].items.length / itemCountLimit);
+    let pl = prevFuncData[0][0];
+    
+    let form = mc.newCustomForm()
+        .setTitle("页码跳转")
+        .addSlider(`滑动下方滑块以选择将要跳转的页码\n\n页码`, 1, maxPage, 1, 1);
+
+    pl.sendForm(form, (pl, data) => {
+        if (data != null) {
+            viewRss(pl, prevFuncData[0][1], prevFuncData[0][2], data[0], prevFuncData);
+        } else {
+            if (prevFuncData[1] == "viewRss") {
+                viewRss(pl, prevFuncData[0][1], prevFuncData[0][2], prevFuncData[0][3], prevFuncData[0][4]);
+            }
+        }
+    });
+}
+
 function viewRss(pl, rss, index, page, prevFuncData) {
     let funcData = [Array.from(arguments), arguments.callee.name];
     let playerData = new JsonConfigFile(playerDataPath);
@@ -101,8 +121,10 @@ function viewRss(pl, rss, index, page, prevFuncData) {
     let start = (page - 1) * itemCountLimit;
     let end = page * itemCountLimit;
     if (end > rss.items.length) end = rss.items.length;
+    if (maxPage > 1) form.addButton(`[ 页码 ${page} / ${maxPage} ]`); // (id: 1)
+    arguments[3] = page;
     for (let i = start; i < end; i++) {
-        form.addButton(`${rss.items[i].title}`); // id: 1 ~ 1 + rss.items.length - 1
+        form.addButton(`${rss.items[i].title}`);
     }
 
     // 先判断hef[i]是否存在于排除列表hel中，再判断是否显示
@@ -118,7 +140,6 @@ function viewRss(pl, rss, index, page, prevFuncData) {
 
             content = rss[elementName]; // TODO: 当content为数组或对象时，如何处理
             if (elementName == "created" || elementName == "updated" || elementName == "published") {
-                // TODO: 判断是否为时间戳
                 content = timestampToLocalString(content);
             }
             content = replaceBetweenPercentSigns(contentFormat, content);
@@ -142,8 +163,16 @@ function viewRss(pl, rss, index, page, prevFuncData) {
                     mainMenu(pl, null);
                     break;
                 default:
-                    viewRssItem(pl, rss.items[data - 1], funcData);
-                    break;
+                    if (maxPage > 1) { // 存在"跳转页码"按钮
+                        if (data == 1) {
+                            jumpToPage(funcData);
+                            return;
+                        } else {
+                            viewRssItem(pl, rss.items[start + data - 2], funcData);
+                        }
+                    } else {
+                        viewRssItem(pl, rss.items[start + data - 1], funcData);
+                    }
             }
         } else {
             mainMenu(pl, null);
@@ -193,7 +222,7 @@ function viewRssItem(pl, item, prevFuncData) {
     }
 
     pl.sendForm(form, (pl, data) => {
-        viewRss(pl, prevFuncData[0][1], index, null, prevFuncData);
+        viewRss(pl, prevFuncData[0][1], index, prevFuncData[0][3], prevFuncData);
     });
 }
 
