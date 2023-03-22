@@ -12,6 +12,8 @@
 // [notPlanned] 8. 重命名订阅源
 // [notPlanned] 9. 启动脚本时备份一次json文件
 // [todo] 10. 多人游戏测试
+// [notPlanned] 11. 当个人多次获取RSS时，只显示最后一次的结果
+// [todo] 12. 空items的处理
 
 // 命令注册
 mc.regPlayerCmd("rss", "获取 RSS Feeds", mainMenu);
@@ -105,12 +107,165 @@ function manageRss(pl) {
                     deleteSource(pl);
                     break;
                 case 2:
-                // modifyFormat(pl);
+                    selectRSS(pl, pl.xuid);
             }
         } else {
             mainMenu(pl);
         }
     });
+}
+
+function selectRSS(pl, xuid) {
+    let playerData = new JsonConfigFile(playerDataPath);
+    let myData = playerData.get(xuid);
+    let rssCount = myData.length;
+    let form = mc.newSimpleForm()
+        .setTitle("修改 RSS")
+        .setContent(`选择将要修改的 RSS 订阅`)
+        .addButton("§r[ < 返回 ]"); // id: 0
+
+    for (let i = 0; i < rssCount; i++) {
+        form.addButton(myData[i]["title"]); // id: 1 ~ rssCount
+    }
+
+    pl.sendForm(form, (pl, data) => {
+        if (data != null) {
+            switch (data) {
+                case 0:
+                    manageRss(pl);
+                    break;
+                default:
+                    modifyElementVisibility(pl, xuid, data - 1);
+            }
+        } else {
+            mainMenu(pl);
+        }
+    });
+}
+
+function modifyElementVisibility(pl, xuid, rssIndex, text) {
+    let playerData = new JsonConfigFile(playerDataPath);
+    let myData = playerData.get(xuid);
+    let helElement = myData[rssIndex]["hel"];
+    let headerElement = new Array();
+    let ielElement = myData[rssIndex]["iel"];
+    let itemElement = new Array();
+    if (text == null) text = "";
+    for (let i = 0; i < myData[rssIndex]["hef"].length; i++) {
+        headerElement.push(myData[rssIndex]["hef"][i][0]);
+    }
+    for (let i = 0; i < myData[rssIndex]["itf"].length; i++) {
+        itemElement.push(myData[rssIndex]["itf"][i][0]);
+    }
+    for (let i = 0; i < helElement.length; i++) { // 合并 hel 和 hef 的元素，并去除重复元素
+        if (headerElement.indexOf(helElement[i]) == -1) {
+            headerElement.push(helElement[i]);
+        }
+    }
+    for (let i = 0; i < ielElement.length; i++) {
+        if (itemElement.indexOf(ielElement[i]) == -1) {
+            itemElement.push(ielElement[i]);
+        }
+    }
+
+    let form = mc.newCustomForm()
+        .setTitle(`编辑 “${myData[rssIndex]["title"]}” 的显示元素`);
+
+    form.addLabel("[ 头部元素 ]"); // id: 0
+    let startH = 1, endH = headerElement.length + 1;
+    let startI = endH + 1, endI = startI + itemElement.length;
+    let sliderId = endI;
+    for (let i = 0; i < headerElement.length; i++) { // id: 1 ~ headerElement.length
+        form.addSwitch(headerElement[i], myData[rssIndex]["hel"].indexOf(headerElement[i]) == -1/* 在数组hel中能否找到元素名称 */);
+    }
+    form.addLabel("[ 内容元素 ]"); // id: headerElement.length + 1
+    for (let i = 0; i < itemElement.length; i++) { // id: headerElement.length + 2 ~ headerElement.length + 2 + itemElement.length - 1
+        form.addSwitch(itemElement[i], myData[rssIndex]["iel"].indexOf(itemElement[i]) == -1);
+    }
+    form.addStepSlider(text + "\n\n点击“提交”按钮后", ["保存设置", "跳转到显示格式设置", "保存设置并跳转到显示格式设置"]); // id: headerElement.length + 2 + itemElement.length
+
+    pl.sendForm(form, (pl, data) => {
+        if (data != null) {
+            // 将头部元素与内容元素的改变过的到同一个数组中
+            let changedList = [[new Array(), new Array()], [new Array(), new Array()]];
+            let isFoundinExclusionList = false;
+            for (let i = startH; i < endH; i++) {
+                isFoundinExclusionList = myData[rssIndex]["hel"].indexOf(headerElement[i - startH]) != -1;
+                if (data[i] == isFoundinExclusionList) { // 判定元素是否被改变
+                    if (data[i] == true) { // 需要从排除列表中移除
+                        changedList[0][0].push(headerElement[i - startH]);
+                    } else { // 需要添加到排除列表中
+                        changedList[0][1].push(headerElement[i - startH]);
+                    }
+                }
+            }
+            for (let i = startI; i < endI; i++) {
+                isFoundinExclusionList = myData[rssIndex]["iel"].indexOf(itemElement[i - startI]) != -1;
+                if (data[i] == isFoundinExclusionList) {
+                    if (data[i] == true) {
+                        changedList[1][0].push(itemElement[i - startI]);
+                    } else {
+                        changedList[1][1].push(itemElement[i - startI]);
+                    }
+                }
+            }
+            switch (data[sliderId]) {
+                case 0:
+                    saveList(pl, xuid, rssIndex, changedList, false);
+                    break;
+                case 1:
+                    // modifyElementFormat(pl, xuid, rssIndex);
+                    break;
+                case 2:
+                    saveList(pl, xuid, rssIndex, changedList, true);
+            }
+        } else {
+            selectRSS(pl, xuid);
+        }
+    });
+}
+
+function saveList(pl, xuid, rssIndex, changedList, jumpToFormat) {
+    if (changedList == null || rssIndex == null) return;
+    if (jumpToFormat == null) jumpToFormat = false;
+    let playerData = new JsonConfigFile(playerDataPath);
+    let myData = playerData.get(xuid);
+    if (rssIndex >= myData.length) return;
+
+    for (let i = 0; i < changedList.length; i++) {
+        for (let j = 0; j < changedList[i].length; j++) {
+            for (let k = 0; k < changedList[i][j].length; k++) {
+                if (j == 0) {
+                    myData[rssIndex][i == 0 ? "hel" : "iel"].splice(myData[rssIndex][i == 0 ? "hel" : "iel"].indexOf(changedList[i][j][k]), 1);
+                    // 判断 hef[i] 或 itf[i] 中是否有该元素，如果无则添加，如果有则不添加
+                    for (let l = 0; l < myData[rssIndex][i == 0 ? "hef" : "itf"].length; l++) {
+                        if (myData[rssIndex][i == 0 ? "hef" : "itf"][l][0] == changedList[i][j][k]) {
+                            break;
+                        } else if (l == myData[rssIndex][i == 0 ? "hef" : "itf"].length - 1) {
+                            myData[rssIndex][i == 0 ? "hef" : "itf"].push([changedList[i][j][k], 1, null, null]);
+                        }
+                    }
+                } else {
+                    // 将元素添加到排除列表中，并将 hef[i] 或 itf[i] 中的该元素所在的数组移到最后
+                    myData[rssIndex][i == 0 ? "hel" : "iel"].push(changedList[i][j][k]);
+                    for (let l = 0; l < myData[rssIndex][i == 0 ? "hef" : "itf"].length; l++) {
+                        if (myData[rssIndex][i == 0 ? "hef" : "itf"][l][0] == changedList[i][j][k]) {
+                            myData[rssIndex][i == 0 ? "hef" : "itf"].push(myData[rssIndex][i == 0 ? "hef" : "itf"].splice(l, 1)[0]);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    playerData.set(xuid, myData);
+
+    if (jumpToFormat) {
+        // modifyElementFormat(pl, xuid, rssIndex);
+    } else {
+        modifyElementVisibility(pl, xuid, rssIndex, "[提示] §a保存成功§r");
+    }
 }
 
 function deleteSource(pl, message) {
@@ -121,7 +276,7 @@ function deleteSource(pl, message) {
     let form = mc.newCustomForm()
         .setTitle("删除 RSS")
         .addLabel(`删除 ${pl.realName} 的 RSS 订阅\n\n${message}`)
-    
+
     for (let i = 0; i < rssCount; i++) {
         form.addSwitch(myData[i]["title"]); // id: 1 ~ rssCount
     }
