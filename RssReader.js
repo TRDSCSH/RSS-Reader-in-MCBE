@@ -13,7 +13,7 @@
 // [notPlanned] 9. 启动脚本时备份一次json文件
 // [todo] 10. 多人游戏测试
 // [notPlanned] 11. 当个人多次获取RSS时，只显示最后一次的结果
-// [todo] 12. 空items的处理
+// [landTodo] 12. 空items的处理
 
 // 命令注册
 mc.regPlayerCmd("rss", "获取 RSS Feeds", mainMenu);
@@ -151,12 +151,8 @@ function modifyElementVisibility(pl, xuid, rssIndex, text) {
     let ielElement = myData[rssIndex]["iel"];
     let itemElement = new Array();
     if (text == null) text = "";
-    for (let i = 0; i < myData[rssIndex]["hef"].length; i++) {
-        headerElement.push(myData[rssIndex]["hef"][i][0]);
-    }
-    for (let i = 0; i < myData[rssIndex]["itf"].length; i++) {
-        itemElement.push(myData[rssIndex]["itf"][i][0]);
-    }
+    for (let i = 0; i < myData[rssIndex]["hef"].length; i++) headerElement.push(myData[rssIndex]["hef"][i][0]);
+    for (let i = 0; i < myData[rssIndex]["itf"].length; i++) itemElement.push(myData[rssIndex]["itf"][i][0]);
     for (let i = 0; i < helElement.length; i++) { // 合并 hel 和 hef 的元素，并去除重复元素
         if (headerElement.indexOf(helElement[i]) == -1) {
             headerElement.push(helElement[i]);
@@ -171,7 +167,7 @@ function modifyElementVisibility(pl, xuid, rssIndex, text) {
     let form = mc.newCustomForm()
         .setTitle(`编辑 “${myData[rssIndex]["title"]}” 的显示元素`);
 
-    form.addLabel("[ 头部元素 ]"); // id: 0
+    form.addLabel("[ 开头元素 ]"); // id: 0
     let startH = 1, endH = headerElement.length + 1;
     let startI = endH + 1, endI = startI + itemElement.length;
     let sliderId = endI;
@@ -186,7 +182,7 @@ function modifyElementVisibility(pl, xuid, rssIndex, text) {
 
     pl.sendForm(form, (pl, data) => {
         if (data != null) {
-            // 将头部元素与内容元素的改变过的到同一个数组中
+            // 将开头元素与内容元素的改变过的到同一个数组中
             let changedList = [[new Array(), new Array()], [new Array(), new Array()]];
             let isFoundinExclusionList = false;
             for (let i = startH; i < endH; i++) {
@@ -214,7 +210,7 @@ function modifyElementVisibility(pl, xuid, rssIndex, text) {
                     saveList(pl, xuid, rssIndex, changedList, false);
                     break;
                 case 1:
-                    // modifyElementFormat(pl, xuid, rssIndex);
+                    modifyElementFormat(pl, xuid, rssIndex);
                     break;
                 case 2:
                     saveList(pl, xuid, rssIndex, changedList, true);
@@ -225,47 +221,66 @@ function modifyElementVisibility(pl, xuid, rssIndex, text) {
     });
 }
 
-function saveList(pl, xuid, rssIndex, changedList, jumpToFormat) {
-    if (changedList == null || rssIndex == null) return;
-    if (jumpToFormat == null) jumpToFormat = false;
+function modifyElementFormat(pl, xuid, rssIndex, message, dropdownData, switchStatus, input1, input2) {
     let playerData = new JsonConfigFile(playerDataPath);
     let myData = playerData.get(xuid);
-    if (rssIndex >= myData.length) return;
+    if (dropdownData == null) dropdownData = 0;
+    if (message == null) message = "";
+    if (switchStatus == null) switchStatus = true;
+    if (input1 == null) input1 = "";
+    if (input2 == null) input2 = "";
+    let allElement = new Array();
+    for (let i = 0; i < myData[rssIndex]["hef"].length; i++) allElement.push("[开头元素] " + myData[rssIndex]["hef"][i][0]);
+    for (let i = 0; i < myData[rssIndex]["itf"].length; i++) allElement.push("[Items元素] " + myData[rssIndex]["itf"][i][0]);
 
-    for (let i = 0; i < changedList.length; i++) {
-        for (let j = 0; j < changedList[i].length; j++) {
-            for (let k = 0; k < changedList[i][j].length; k++) {
-                if (j == 0) {
-                    myData[rssIndex][i == 0 ? "hel" : "iel"].splice(myData[rssIndex][i == 0 ? "hel" : "iel"].indexOf(changedList[i][j][k]), 1);
-                    // 判断 hef[i] 或 itf[i] 中是否有该元素，如果无则添加，如果有则不添加
-                    for (let l = 0; l < myData[rssIndex][i == 0 ? "hef" : "itf"].length; l++) {
-                        if (myData[rssIndex][i == 0 ? "hef" : "itf"][l][0] == changedList[i][j][k]) {
-                            break;
-                        } else if (l == myData[rssIndex][i == 0 ? "hef" : "itf"].length - 1) {
-                            myData[rssIndex][i == 0 ? "hef" : "itf"].push([changedList[i][j][k], 1, null, null]);
-                        }
-                    }
-                } else {
-                    // 将元素添加到排除列表中，并将 hef[i] 或 itf[i] 中的该元素所在的数组移到最后
-                    myData[rssIndex][i == 0 ? "hel" : "iel"].push(changedList[i][j][k]);
-                    for (let l = 0; l < myData[rssIndex][i == 0 ? "hef" : "itf"].length; l++) {
-                        if (myData[rssIndex][i == 0 ? "hef" : "itf"][l][0] == changedList[i][j][k]) {
-                            myData[rssIndex][i == 0 ? "hef" : "itf"].push(myData[rssIndex][i == 0 ? "hef" : "itf"].splice(l, 1)[0]);
-                            break;
-                        }
-                    }
-                }
+    let form = mc.newCustomForm()
+        .setTitle(`编辑 “${myData[rssIndex]["title"]}” 的显示格式`)
+        .addDropdown("请选择要编辑的元素", allElement, dropdownData) // id: 0
+        .addSwitch("显示标签", switchStatus) // id: 1
+        .addInput("标签格式", `使用'%%'代替标签名称，留空则使用默认格式`, input1) // id: 2
+        .addInput("内容格式", `使用'%%'代替内容，留空则使用默认格式`, input2) // id: 3
+        .addStepSlider(message + "\n\n点击“提交”按钮后", ["保存设置", "跳转到显示元素设置", "保存设置并跳转到显示元素设置"]); // id: 4
+
+    pl.sendForm(form, (pl, data) => {
+        if (data != null) {
+            let index = data[0];
+            let isHeader = index < myData[rssIndex]["hef"].length;
+            let element = isHeader ? myData[rssIndex]["hef"][index][0] : myData[rssIndex]["itf"][index - myData[rssIndex]["hef"].length][0];
+            let itemIndex = isHeader ? index : index - myData[rssIndex]["hef"].length;
+            let isShowLabel = data[1];
+            let labelFormat = replaceNewLine(data[2]);
+            let contentFormat = replaceNewLine(data[3]);
+            if (labelFormat == "") labelFormat = null;
+            if (contentFormat == "") contentFormat = null;
+            switch (data[4]) {
+                case 0:
+                    saveFormat(pl, xuid, rssIndex, itemIndex, isHeader, isShowLabel, labelFormat, contentFormat);
+                    modifyElementFormat(pl, xuid, rssIndex, "[提示] §a保存成功§r", data[0], isShowLabel, labelFormat, contentFormat);
+                    break;
+                case 1:
+                    modifyElementVisibility(pl, xuid, rssIndex);
+                    break;
+                case 2:
+                    saveFormat(pl, xuid, rssIndex, itemIndex, isHeader, isShowLabel, labelFormat, contentFormat);
+                    modifyElementVisibility(pl, xuid, rssIndex, "[提示] §a保存成功§r");
             }
+        } else {
+            selectRSS(pl, xuid);
         }
-    }
+    });
+}
 
+function saveFormat(pl, xuid, rssIndex, itemIndex, isHeader, isShowLabel, labelFormat, contentFormat) {
+    let playerData = new JsonConfigFile(playerDataPath);
+    let myData = playerData.get(xuid);
+    myData[rssIndex][isHeader ? "hef" : "itf"][itemIndex][1] = isShowLabel;
+    myData[rssIndex][isHeader ? "hef" : "itf"][itemIndex][2] = labelFormat;
+    myData[rssIndex][isHeader ? "hef" : "itf"][itemIndex][3] = contentFormat;
     playerData.set(xuid, myData);
+}
 
-    if (jumpToFormat) {
-        // modifyElementFormat(pl, xuid, rssIndex);
-    } else {
-        modifyElementVisibility(pl, xuid, rssIndex, "[提示] §a保存成功§r");
-    }
+function replaceNewLine(str) {
+    return str.replace(/\\n/g, "\n");
 }
 
 function deleteSource(pl, message) {
@@ -606,6 +621,49 @@ function isOnline(pl) {
     return false;
 }
 
+function saveList(pl, xuid, rssIndex, changedList, jumpToFormat) {
+    if (changedList == null || rssIndex == null) return;
+    if (jumpToFormat == null) jumpToFormat = false;
+    let playerData = new JsonConfigFile(playerDataPath);
+    let myData = playerData.get(xuid);
+    if (rssIndex >= myData.length) return;
+
+    for (let i = 0; i < changedList.length; i++) {
+        for (let j = 0; j < changedList[i].length; j++) {
+            for (let k = 0; k < changedList[i][j].length; k++) {
+                if (j == 0) {
+                    myData[rssIndex][i == 0 ? "hel" : "iel"].splice(myData[rssIndex][i == 0 ? "hel" : "iel"].indexOf(changedList[i][j][k]), 1);
+                    // 判断 hef[i] 或 itf[i] 中是否有该元素，如果无则添加，如果有则不添加
+                    for (let l = 0; l < myData[rssIndex][i == 0 ? "hef" : "itf"].length; l++) {
+                        if (myData[rssIndex][i == 0 ? "hef" : "itf"][l][0] == changedList[i][j][k]) {
+                            break;
+                        } else if (l == myData[rssIndex][i == 0 ? "hef" : "itf"].length - 1) {
+                            myData[rssIndex][i == 0 ? "hef" : "itf"].push([changedList[i][j][k], 1, null, null]);
+                        }
+                    }
+                } else {
+                    // 将元素添加到排除列表中，并将 hef[i] 或 itf[i] 中的该元素所在的数组移到最后
+                    myData[rssIndex][i == 0 ? "hel" : "iel"].push(changedList[i][j][k]);
+                    for (let l = 0; l < myData[rssIndex][i == 0 ? "hef" : "itf"].length; l++) {
+                        if (myData[rssIndex][i == 0 ? "hef" : "itf"][l][0] == changedList[i][j][k]) {
+                            myData[rssIndex][i == 0 ? "hef" : "itf"].push(myData[rssIndex][i == 0 ? "hef" : "itf"].splice(l, 1)[0]);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    playerData.set(xuid, myData);
+
+    if (jumpToFormat) {
+        modifyElementFormat(pl, xuid, rssIndex, "[提示] §a保存成功§r");
+    } else {
+        modifyElementVisibility(pl, xuid, rssIndex, "[提示] §a保存成功§r");
+    }
+}
+
 function saveToFile(xuid, rss, url) {
     let playerData = new JsonConfigFile(playerDataPath);
     let myData = playerData.get(xuid);
@@ -623,9 +681,9 @@ function saveToFile(xuid, rss, url) {
     if (rssIndex != -1) { // 存在该订阅时仅更新标题
         if (myData[rssIndex]["title"] != rss.title) myData[rssIndex]["title"] = rss.title;
     } else {
-        let hel = new Array(); // hel: 头部元素排除列表
+        let hel = new Array(); // hel: 开头元素排除列表
         let iel = new Array(); // iel: Items元素排除列表
-        let hef = new Array(); // hef: 头部元素显示格式
+        let hef = new Array(); // hef: 开头元素显示格式
         let itf = new Array(); // itf: Items元素显示格式
 
         for (let key in rss) {
