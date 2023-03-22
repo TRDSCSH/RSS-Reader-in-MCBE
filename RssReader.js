@@ -1,20 +1,3 @@
-/* 对 prevFuncData 参数的解释 */
-/* [函数名, [函数已接受的参数]] */
-
-/* 测试项目 */
-// [ok] 1. addSource, addMutiSource 函数中表单的功能
-// [ok] 2. getRssFeedFromURL 函数中的错误处理：能否跳转到正确的表单
-// [ok] 3. 输入不是链接，能否正确处理
-// [ok] 4. 显示正确的数组或对象
-// [unknown] 5. 为什么在输入完链接提交后会出现两个表单，一个undefined，一个正常的
-// [ok] 6. html标签的处理(灰色)
-// [notPlanned] 7. 在 mainMenu 函数中，当点击订阅源时，将订阅移到最前面
-// [notPlanned] 8. 重命名订阅源
-// [notPlanned] 9. 启动脚本时备份一次json文件
-// [todo] 10. 多人游戏测试
-// [notPlanned] 11. 当个人多次获取RSS时，只显示最后一次的结果
-// [landTodo] 12. 空items的处理
-
 // 命令注册
 mc.regPlayerCmd("rss", "获取 RSS Feeds", mainMenu);
 
@@ -28,6 +11,7 @@ const elementLabelMap = {
     published: "发布时间",
     link: "链接",
     content: "内容",
+    content_encoded: "内容（编码）",
     category: "分类",
     enclosures: "附件",
     media: "媒体",
@@ -50,7 +34,7 @@ let timerID = null;
 function mainMenu(pl, text) {
     let funcData = [Array.from(arguments), arguments.callee.name];
     let playerData = new JsonConfigFile(playerDataPath);
-    let myData = playerData.get(pl.xuid); // log(myData + " " + typeof myData);
+    let myData = playerData.get(pl.xuid);
     if (myData == null) {
         myData = new Array();
         playerData.set(pl.xuid, myData);
@@ -270,19 +254,6 @@ function modifyElementFormat(pl, xuid, rssIndex, message, dropdownData, switchSt
     });
 }
 
-function saveFormat(pl, xuid, rssIndex, itemIndex, isHeader, isShowLabel, labelFormat, contentFormat) {
-    let playerData = new JsonConfigFile(playerDataPath);
-    let myData = playerData.get(xuid);
-    myData[rssIndex][isHeader ? "hef" : "itf"][itemIndex][1] = isShowLabel;
-    myData[rssIndex][isHeader ? "hef" : "itf"][itemIndex][2] = labelFormat;
-    myData[rssIndex][isHeader ? "hef" : "itf"][itemIndex][3] = contentFormat;
-    playerData.set(xuid, myData);
-}
-
-function replaceNewLine(str) {
-    return str.replace(/\\n/g, "\n");
-}
-
 function deleteSource(pl, message) {
     if (message == null) message = "§7请将要删除订阅源的开关切换为开启, 然后点击“提交”按钮以删除选中的订阅";
     let playerData = new JsonConfigFile(playerDataPath);
@@ -315,8 +286,7 @@ function deleteSource(pl, message) {
     });
 }
 
-function deleteSourceConfirm(pl, xuid, deleteList) {
-    // deleteList: [数组]存储需要删除的序号
+function deleteSourceConfirm(pl, xuid, deleteList) { // deleteList: [数组]存储需要删除的序号
     let playerData = new JsonConfigFile(playerDataPath);
     let myData = playerData.get(xuid);
     let nameListString = "";
@@ -391,11 +361,9 @@ function viewRss(pl, rss, index, page, prevFuncData) {
         form.addButton(`${rss.items[i].title}`);
     }
 
-    // 先判断hef[i]是否存在于排除列表hel中，再判断是否显示
-    for (let i = 0; i < hef.length; i++) {
+    for (let i = 0; i < hef.length; i++) { // 先判断hef[i]是否存在于排除列表hel中，再判断是否显示
         elementName = hef[i][0];
-        if (hel.indexOf(elementName) == -1) {
-            // 获取配置
+        if (hel.indexOf(elementName) == -1) { // 获取配置
             showLabel = hef[i][1];
             labelFormat = hef[i][2];
             contentFormat = hef[i][3];
@@ -456,9 +424,8 @@ function viewRssItem(pl, item, prevFuncData) {
     let iel = myData[index]["iel"];
     let itf = myData[index]["itf"];
     let elementName, showLabel, labelFormat, contentFormat, label, content;
-
-    // 先判断itf[i]是否存在于排除列表iel中，再判断是否显示
-    for (let i = 0; i < itf.length; i++) {
+    
+    for (let i = 0; i < itf.length; i++) { // 先判断itf[i]是否存在于排除列表iel中，再判断是否显示
         elementName = itf[i][0];
         if (iel.indexOf(elementName) == -1) {
             // 获取配置
@@ -491,15 +458,13 @@ function viewRssItem(pl, item, prevFuncData) {
     });
 }
 
-function addSource(pl, label, inputedText, prevFuncData) {
-    // label: 提示信息 | inputedText: 输入框中的文本
-
+function addSource(pl, label, inputedText, prevFuncData) { // label: 提示信息 | inputedText: 输入框中的文本
     if (valueNotProvided(label)) label = arguments[1] = "";
     if (valueNotProvided(inputedText)) inputedText = arguments[2] = "";
     if (valueNotProvided(prevFuncData)) prevFuncData = arguments[3] = new Array();
 
     let form = mc.newCustomForm()
-        .setTitle("添加 RSS")    // testURL: https://www.minebbs.com/forums/-/index.rss
+        .setTitle("添加 RSS")
         .addInput("在下面文本框中输入RSS地址", "链接过长？输入§l0§r然后点击“提交”按钮来分段输入", inputedText) // id: 0
         .addLabel(label);
 
@@ -541,9 +506,7 @@ function selectInputCount(pl, prevFuncData) {
     });
 }
 
-function addMutiSource(pl, label, inputCount, inputedText, prevFuncData) {
-    // label: 提示信息 | inputCount: 文本框数量 | inputedText: [数组]输入框中的文本
-
+function addMutiSource(pl, label, inputCount, inputedText, prevFuncData) { // label: 提示信息 | inputCount: 文本框数量 | inputedText: [数组]输入框中的文本
     if (valueNotProvided(label)) label = arguments[1] = "";
     if (valueNotProvided(inputCount)) inputCount = arguments[2] = 2;
     if (valueNotProvided(inputedText)) {
@@ -564,7 +527,7 @@ function addMutiSource(pl, label, inputCount, inputedText, prevFuncData) {
 
     form.addLabel(label);
 
-    pl.sendForm(form, (pl, data) => {    // testURL: https://www.minebbs.com/forums/-/index.rss
+    pl.sendForm(form, (pl, data) => {
         if (data != null) {
             let rss, url = "";
             for (let i = 1; i <= inputCount; i++) {
@@ -591,18 +554,18 @@ function addMutiSource(pl, label, inputCount, inputedText, prevFuncData) {
 // 功能函数
 async function getRssFeedFromURL(pl, url, callback, prevFuncData) {
     try {
-        pl.addTag("isGettingRss"); // log("[138] Tag added: isGettingRss");
-        enableTimer(); // log("[139] Timer enabled");
+        pl.addTag("isGettingRss");
+        enableTimer();
         timerIsUsing++;
         let rss = await parse(url);
-        if (isOnline(pl)) callback(rss); // 如果玩家还在线, 则执行回调函数
+        if (isOnline(pl)) callback(rss);
         timerIsUsing--;
-        disableTimer(); // log("[144] Timer disabled");
-        pl.removeTag("isGettingRss"); // log("[145] Tag removed: isGettingRss");
+        disableTimer();
+        pl.removeTag("isGettingRss");
     } catch (err) {
-        timerIsUsing--; // log(err);
-        disableTimer(); // log("[150] Timer disabled" + "timerIsUsing: " + timerIsUsing);
-        pl.removeTag("isGettingRss"); // log("[151] Tag removed: isGettingRss");
+        timerIsUsing--;
+        disableTimer();
+        pl.removeTag("isGettingRss");
         if (prevFuncData[1] == "addSource") {
             addSource(pl, '获取 RSS 时发生错误: ' + redFont + err.code, prevFuncData[0][2], prevFuncData);
         } else if (prevFuncData[1] == "addMutiSource") {
@@ -664,6 +627,19 @@ function saveList(pl, xuid, rssIndex, changedList, jumpToFormat) {
     }
 }
 
+function saveFormat(pl, xuid, rssIndex, itemIndex, isHeader, isShowLabel, labelFormat, contentFormat) {
+    let playerData = new JsonConfigFile(playerDataPath);
+    let myData = playerData.get(xuid);
+    myData[rssIndex][isHeader ? "hef" : "itf"][itemIndex][1] = isShowLabel;
+    myData[rssIndex][isHeader ? "hef" : "itf"][itemIndex][2] = labelFormat;
+    myData[rssIndex][isHeader ? "hef" : "itf"][itemIndex][3] = contentFormat;
+    playerData.set(xuid, myData);
+}
+
+function replaceNewLine(str) {
+    return str.replace(/\\n/g, "\n");
+}
+
 function saveToFile(xuid, rss, url) {
     let playerData = new JsonConfigFile(playerDataPath);
     let myData = playerData.get(xuid);
@@ -700,7 +676,7 @@ function saveToFile(xuid, rss, url) {
             }
         }
 
-        let rssItems = rss["items"][0]; // log("rssItems: " + rssItems);
+        let rssItems = rss["items"][0];
         for (let key in rssItems) {
             if (key != "title" && key != "description" && key != "link" && key != "published") {
                 iel.push(key);
@@ -816,15 +792,9 @@ function valueNotProvided(varible) { /* 判断值是否未提供 */
 }
 
 function isBlank(str) {
-    if (typeof str !== "string") {
-        return false; // 如果参数不是字符串，返回false
-    }
-    for (let i = 0; i < str.length; i++) {
-        if (str[i] !== " ") {
-            return false; // 如果字符串中有任何非空格字符，返回false
-        }
-    }
-    return true; // 如果字符串中全是空格或为空字符串，返回true
+    if (typeof str !== "string") return false;
+    for (let i = 0; i < str.length; i++) if (str[i] !== " ") return false;
+    return true;
 }
 
 function showLoadingInfo() {
@@ -833,9 +803,7 @@ function showLoadingInfo() {
 
 function timer() {
     loadingDotsIndex++;
-    if (loadingDotsIndex >= loadingDots.length) {
-        loadingDotsIndex = 0;
-    }
+    if (loadingDotsIndex >= loadingDots.length) loadingDotsIndex = 0;
     showLoadingInfo()
 }
 
