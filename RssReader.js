@@ -41,13 +41,15 @@ function mainMenu(pl, text) {
     }
     if (text == null) text = "";
     let rssCount = myData.length;
-    let content = `已添加 ${rssCount} 个订阅\n${text}`;
+    let content = (text == "") ? ((rssCount != 0) ? `已添加 ${rssCount} 个订阅\n` : "还没有添加任何 RSS 订阅") : `${text}`;
 
     let form = mc.newSimpleForm()
         .setTitle("RSS 订阅")
         .setContent(content)
-        .addButton("§r[ 添加 RSS ]") // id: 0
-        .addButton("§r[ 管理 RSS ]"); // id: 1
+        .addButton("§r[ 添加 RSS ]"); // id: 0
+
+    
+    if (myData.length != 0) form.addButton("§r[ 管理 RSS ]"); // id: 1
 
     for (let i = 0; i < rssCount; i++) {
         form.addButton(myData[i]["title"]); // id: 2 ~ 2 + rssCount - 1
@@ -310,7 +312,11 @@ function deleteSourceConfirm(pl, xuid, deleteList) { // deleteList: [数组]存�
                         myData.splice(deleteList[i], 1);
                     }
                     playerData.set(xuid, myData);
-                    deleteSource(pl, `[提示] 已删除 ${deleteList.length} 个订阅`);
+                    if (myData.length == 0) {
+                        mainMenu(pl, "[提示] 已删除所有订阅");
+                    } else {
+                        deleteSource(pl, `[提示] 已删除 ${deleteList.length} 个订阅`);
+                    }
             }
         } else {
             deleteSource(pl);
