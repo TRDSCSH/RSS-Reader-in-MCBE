@@ -223,8 +223,8 @@ function modifyElementFormat(pl, xuid, rssIndex, message, dropdownData, switchSt
         .setTitle(`编辑 “${myData[rssIndex]["title"]}” 的显示格式`)
         .addDropdown("请选择要编辑的元素", allElement, dropdownData) // id: 0
         .addSwitch("显示标签", switchStatus) // id: 1
-        .addInput("标签格式", `使用'%%'代替标签名称，留空则使用默认格式`, input1) // id: 2
-        .addInput("内容格式", `使用'%%'代替内容，留空则使用默认格式`, input2) // id: 3
+        .addInput("标签格式", `使用'%%%%'代替标签名称，留空则使用默认格式`, input1) // id: 2
+        .addInput("内容格式", `使用'%%%%'代替内容，留空则使用默认格式`, input2) // id: 3
         .addStepSlider(message + "\n\n点击“提交”按钮后", ["保存设置", "跳转到显示元素设置", "保存设置并跳转到显示元素设置"]); // id: 4
 
     pl.sendForm(form, (pl, data) => {
