@@ -1,3 +1,2 @@
 # RSS-Reader-in-MCBE
- 在 Minecraft 基岩版中查看 RSS
- RSS Feed Reader in Minecraft Bedrock Edition with LiteLoaderBDS
+ 简易的 RSS 阅读器，基于 LiteLoaderBDS 或 LeviLamina 加载器。
